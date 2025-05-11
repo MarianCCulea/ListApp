@@ -8,9 +8,9 @@ import { Image } from '@/components/atoms/Image';
 
 import React from 'react';
 
-const PAGE_SIZE = 20;
+const PRODUCT_PER_PAGE = 20;
 const FAKE_API_DELAY_MS = 1000;
-
+const FAILURE_RATE = 1.0;
 
 const styles = StyleSheet.create({
 container: { flex: 1, padding: 16 },
@@ -37,19 +37,26 @@ export const FilteredProductList = () => {
   const [hasMore, setHasMore] = useState(true);
 
   // Fake API fetch
-  const fetchProducts = useCallback(async (page: number) => {
+  const fetchProducts = useCallback(async (page: number, selectedCategory: string = '') => {
+    console.log(`Fetching page ${page} with category: ${selectedCategory || 'all'}`);
     setIsLoading(true);
     setError(null);
     
     try {
       // Fake network delay
       await new Promise(resolve => setTimeout(resolve, FAKE_API_DELAY_MS));
+      if (Math.random() < FAILURE_RATE) {
+        throw new Error('API request failed (simulated)');
+      }
+      const filtered = selectedCategory 
+      ? products.filter(p => p.category === selectedCategory)
+      : [...products];
 
-      const startIndex = (page - 1) * PAGE_SIZE;
-      const endIndex = startIndex + PAGE_SIZE;
-      const newItems = products.slice(startIndex, endIndex);
-
-      setDisplayedProducts(prev => [...prev, ...newItems]);
+      const startIndex = (page - 1) * PRODUCT_PER_PAGE;
+      const endIndex = startIndex + PRODUCT_PER_PAGE;
+      const nextItems: Product[] = filtered.slice(startIndex, startIndex + PRODUCT_PER_PAGE);
+      
+      setDisplayedProducts(prev => [...prev, ...nextItems]);
       setHasMore(endIndex < products.length);
     } catch (error) {
       if (error instanceof Error) {
@@ -72,26 +79,11 @@ export const FilteredProductList = () => {
     ];
   }, [products]);
 
-  const filteredProducts = useMemo(() => {
-    return selectedCategory
-      ? products.filter((p) => p.category === selectedCategory)
-      : products;
-  }, [products, selectedCategory]);
-
-  const displayedProductss = useMemo(() => {
-    return filteredProducts.slice(0, currentPage * PAGE_SIZE);
-  }, [filteredProducts, currentPage]);
-
-  const loadMoreProducts = (page: number): void => {
-    const startIndex = (page - 1) * PAGE_SIZE;
-    const nextItems: Product[] = products.slice(startIndex, startIndex + PAGE_SIZE);
-    setDisplayedProducts(prev => [...prev, ...nextItems]);
-  };
-
   useEffect(() => {
-    console.log('Products data:', products); 
-    fetchProducts(1);
-  }, []);
+    setCurrentPage(1);
+    setDisplayedProducts([]);
+    fetchProducts(1, selectedCategory);
+  }, [selectedCategory]);
 
   // Load more handler
   const handleLoadMore = useCallback(() => {
@@ -133,11 +125,13 @@ export const FilteredProductList = () => {
         renderItem={renderItem}
         keyExtractor={(item: Product) => item.id.toString()}
         onEndReached={() => {
-          loadMoreProducts(currentPage + 1);
-          setCurrentPage(prev => prev + 1);
+          handleLoadMore();
         }}
         onEndReachedThreshold={0.5}
-        ListFooterComponent={() => <ActivityIndicator size="small" color="#000" />}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={
+          !isLoading ? <Text>No products found</Text> : null
+        }
       />
     </View>
   );
