@@ -10,7 +10,7 @@ import React from 'react';
 
 const PRODUCT_PER_PAGE = 20;
 const FAKE_API_DELAY_MS = 1000;
-const FAILURE_RATE = 1.0;
+const FAILURE_RATE = 0.1;
 
 const styles = StyleSheet.create({
 container: { flex: 1, padding: 16 },
