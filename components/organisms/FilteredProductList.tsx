@@ -7,10 +7,11 @@ import products from '@/mock-products';
 import { Image } from '@/components/atoms/Image';
 
 import React from 'react';
+import { EmptyState } from '../molecules/EmptyState';
 
-const PRODUCT_PER_PAGE = 20;
+const PRODUCT_PER_PAGE = 50;
 const FAKE_API_DELAY_MS = 1000;
-const FAILURE_RATE = 0.1;
+const FAILURE_RATE = 0.2;
 
 const styles = StyleSheet.create({
 container: { flex: 1, padding: 16 },
@@ -21,8 +22,12 @@ image: {
   borderRadius: 8,
   marginRight: 16,
 },
-item: { padding: 16, borderBottomWidth: 1, borderColor: '#eee' },
-error: { color: 'red', textAlign: 'center', padding: 16 },
+item: {
+  height: 100,
+  flexDirection: 'row',
+  padding: 10,
+  alignItems: 'center'
+},error: { color: 'red', textAlign: 'center', padding: 16 },
 noMore: { textAlign: 'center', padding: 16, color: '#888' }
 });
 
@@ -48,6 +53,7 @@ export const FilteredProductList = () => {
       if (Math.random() < FAILURE_RATE) {
         throw new Error('API request failed (simulated)');
       }
+
       const filtered = selectedCategory 
       ? products.filter(p => p.category === selectedCategory)
       : [...products];
@@ -105,11 +111,74 @@ export const FilteredProductList = () => {
     </View>
   );
 
+  const ProductItem = React.memo(({ item }: { item: Product }) => (
+    <View style={styles.item}>
+      <Image 
+        source={{ uri: item.image }} 
+        style={styles.image}
+      />
+      <View>
+        <Text numberOfLines={1}>{item.title}</Text>
+        <Text style={styles.category}>{item.category}</Text>
+        <Text>${item.price}</Text>
+      </View>
+    </View>
+  ));
+  
+
+  const handleRetry = () => {
+    setCurrentPage(1);
+    setDisplayedProducts([]);
+    fetchProducts(1, selectedCategory);
+  };
+
   const renderFooter = () => {
-    if (isLoading) return <ActivityIndicator size="small" />;
-    if (error) return <Text style={styles.error}>{error}</Text>;
-    if (!hasMore) return <Text style={styles.noMore}>No more products</Text>;
+    if (isLoading) return <ActivityIndicator style={{ padding: 20 }} />;
+    if (error) return <EmptyState message={error} onRetry={handleRetry} />;
+    if (!hasMore && displayedProducts.length > 0) {
+      return <Text style={styles.noMore}>No more products</Text>;
+    }
     return null;
+  };
+
+  const renderContent = () => {
+    if (isLoading && displayedProducts.length === 0) {
+      return <ActivityIndicator size="large" />;
+    }
+    
+    if (displayedProducts.length === 0) {
+      return (
+        <EmptyState 
+          message={selectedCategory 
+            ? `No products in ${selectedCategory} category`
+            : "No products available"
+          } 
+          onRetry={handleRetry}
+        />
+      );
+    }
+
+    return (
+      <FlatList
+        data={displayedProducts}
+        renderItem={({ item }) => <ProductItem item={item} />}
+        keyExtractor={(item: Product) => item.id.toString()}
+        getItemLayout={(data, index) => ({
+          length: 100,
+          offset: 100 * index,
+          index,
+        })}
+        initialNumToRender={10} // Adjust based on screen size
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        windowSize={5}
+        onEndReached={() => {
+          handleLoadMore();
+        }}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={renderFooter}
+      />
+    );
   };
   
   return (
@@ -120,19 +189,7 @@ export const FilteredProductList = () => {
       onSelect={setSelectedCategory}
       />
 
-      <FlatList
-        data={displayedProducts}
-        renderItem={renderItem}
-        keyExtractor={(item: Product) => item.id.toString()}
-        onEndReached={() => {
-          handleLoadMore();
-        }}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={renderFooter}
-        ListEmptyComponent={
-          !isLoading ? <Text>No products found</Text> : null
-        }
-      />
+      {renderContent()}
     </View>
   );
 };
